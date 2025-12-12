@@ -1,0 +1,9 @@
+fastmcp>=2.0.0
+math
+json
+typing
+asyncio
+aiohttp
+pillow
+httpx
+pydantic

@@ -1,0 +1,22 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        
+        {
+            "name": "Python: Current File",
+            "type": "python",
+            "request": "launch",
+            "program": "${file}",
+            "console": "integratedTerminal",
+            "python": "C:\\Users\\lvyongze\\proj\\mcp-server-demo\\.venv\\Scripts\\python.exe"
+        },
+        {
+            "name": "Python: Server",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/server.py",
+            "console": "integratedTerminal",
+            "python": "C:\\Users\\lvyongze\\proj\\mcp-server-demo\\.venv\\Scripts\\python.exe"
+        }
+    ]
+}
