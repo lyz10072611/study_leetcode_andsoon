@@ -44,11 +44,6 @@ LangChain的核心优势在于其**模块化设计**和**组件化架构**，这
 ### 1.1 框架概述
 
 ```callout
-block_type: callout
-background_color: 5
-border_color: 5
-emoji_id: globe_with_meridians
-content: |
   **LangChain架构**：LangChain基于模块化设计理念，将LLM应用开发分解为一系列独立但可组合的组件。核心架构包括模型接口层、数据连接层、链和代理系统、记忆管理和工具集成等部分，这些组件协同工作，使开发者能够构建复杂而强大的AI应用。
 ```
 
@@ -77,11 +72,6 @@ LangChain的设计哲学围绕"**可组合性**"和"**模块化**"展开，将LL
 ### 1.2 核心组件详解
 
 ```callout
-block_type: callout
-background_color: 5
-border_color: 5
-emoji_id: puzzle_piece
-content: |
   **组件化思维**：理解LangChain的核心组件是掌握该框架的关键。每个组件解决LLM应用开发中的特定问题，通过组合这些组件，可以构建复杂而强大的AI系统。本部分详细介绍每个核心组件的功能、使用场景和工作原理，为后续实践打下坚实基础。
 ```
 
