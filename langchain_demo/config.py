@@ -3,7 +3,7 @@
 使用百炼平台的 ASR、TTS 和 LLM 服务
 """
 # 百炼平台配置（硬编码的API密钥）
-BAILIAN_API_KEY = "----"  # 请替换为您的百炼平台 API Key
+BAILIAN_API_KEY = "itk1LVZD32SyYHBkM6w0adDn7IKmLVHI"  # 请替换为您的百炼平台 API Key
 BAILIAN_BASE_URL = "https://dashscope.aliyuncs.com/compatible-mode/v1"
 QWEN_MODEL = "qwen-plus"  # 使用 qwen2.5 模型，可选: qwen-turbo, qwen-plus, qwen-max
 
