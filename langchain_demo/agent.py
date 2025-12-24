@@ -9,34 +9,10 @@ from tools import get_all_tools
 from config import BAILIAN_API_KEY, BAILIAN_BASE_URL, QWEN_MODEL
 
 # LangChain 1.0.0+ 的导入方式
-# 在 LangChain 1.0.0+ 中，agent 相关功能的导入路径可能不同
-try:
-    # 优先尝试从 langchain.agents 导入（LangChain 1.0.0+ 标准方式）
-    from langchain.agents import create_openai_tools_agent, AgentExecutor
-except ImportError:
-    try:
-        # 尝试从 langchain-agents 包导入（如果单独安装）
-        from langchain_agents import create_openai_tools_agent, AgentExecutor
-    except ImportError:
-        try:
-            # 尝试使用 langchain.agents.create_agent（LangChain 1.0+ 新 API）
-            from langchain.agents import AgentExecutor, create_agent
-            
-            # 创建一个包装函数以兼容 create_openai_tools_agent API
-            def create_openai_tools_agent(llm, tools, prompt):
-                # 在 LangChain 1.0+ 中，create_agent 可能需要不同的参数
-                # 这里使用兼容的方式
-                return create_agent(llm=llm, tools=tools, prompt=prompt)
-        except ImportError:
-            # 最后的备用方案：使用 langchain.agents 的其他 API
-            from langchain.agents import AgentExecutor
-            
-            # 如果所有导入都失败，抛出清晰的错误
-            raise ImportError(
-                "无法导入 create_openai_tools_agent 或 AgentExecutor。"
-                "请确保已安装 langchain >= 1.0.0 和 langchain-agents >= 1.0.0。"
-                "运行: pip install langchain langchain-agents"
-            )
+# 在 LangChain 1.0.0 中，API 发生了重大变化
+# 使用新的 create_agent API，它返回一个 CompiledStateGraph
+from langchain.agents import create_agent
+from langchain_core.runnables import Runnable
 
 
 class VoiceChatAgent:
@@ -70,15 +46,19 @@ class VoiceChatAgent:
         # 获取所有工具（包括ASR和TTS工具）
         self.tools = get_all_tools()
         
-        # 创建Agent
+        # 创建Agent (在 LangChain 1.0.0 中，这是一个 Runnable)
         self.agent_executor = self._create_agent()
         
         # 对话历史
         self.conversation_history: List = []
     
-    def _create_agent(self) -> AgentExecutor:
-        """创建LangChain Agent"""
+    def _create_agent(self) -> Runnable:
+        """
+        创建LangChain Agent (使用 LangChain 1.0.0+ 的新 API)
         
+        在 LangChain 1.0.0 中，create_agent 返回一个 CompiledStateGraph，
+        可以直接作为 Runnable 使用
+        """
         # 系统提示词
         system_prompt = """你是一个友好的语音聊天机器人助手。你的任务是：
 1. 理解用户的语音输入（已转换为文本）
@@ -93,31 +73,16 @@ class VoiceChatAgent:
 
 请始终以友好、专业的方式与用户交流。"""
         
-        # 创建提示词模板（使用最新版API）
-        prompt = ChatPromptTemplate.from_messages([
-            ("system", system_prompt),
-            ("human", "{input}"),
-            MessagesPlaceholder(variable_name="agent_scratchpad"),
-        ])
-        
-        # 创建Agent（使用最新版API）
-        agent = create_openai_tools_agent(
-            llm=self.llm,
+        # 使用 LangChain 1.0.0+ 的新 API 创建 agent
+        # create_agent 返回一个 CompiledStateGraph，可以直接调用
+        agent_graph = create_agent(
+            model=self.llm,
             tools=self.tools,
-            prompt=prompt
+            system_prompt=system_prompt,
+            debug=True  # 启用调试模式
         )
         
-        # 创建Agent执行器
-        agent_executor = AgentExecutor(
-            agent=agent,
-            tools=self.tools,
-            verbose=True,
-            handle_parsing_errors=True,
-            max_iterations=10,
-            return_intermediate_steps=False
-        )
-        
-        return agent_executor
+        return agent_graph
     
     async def chat(self, text: str, user_id: Optional[str] = None) -> str:
         """
@@ -131,16 +96,42 @@ class VoiceChatAgent:
             Agent的回复文本
         """
         try:
-            # 构建输入
+            # 在 LangChain 1.0.0 中，agent 是一个 Runnable
+            # 输入格式为 {"messages": [HumanMessage(content=text)]}
+            from langchain_core.messages import HumanMessage
+            
+            # 构建输入（LangChain 1.0.0+ 使用 messages 格式）
             input_data = {
-                "input": text,
+                "messages": [HumanMessage(content=text)]
             }
             
             # 执行Agent
             result = await self.agent_executor.ainvoke(input_data)
             
-            # 获取回复
-            response = result.get("output", "抱歉，我无法处理您的请求。")
+            # 在 LangChain 1.0.0 中，结果格式可能不同
+            # 通常返回的是 messages 列表，最后一条是 AI 的回复
+            if isinstance(result, dict) and "messages" in result:
+                messages = result["messages"]
+                # 获取最后一条 AI 消息
+                if messages:
+                    last_message = messages[-1]
+                    if hasattr(last_message, 'content'):
+                        response = last_message.content
+                    else:
+                        response = str(last_message)
+                else:
+                    response = "抱歉，我无法处理您的请求。"
+            elif isinstance(result, dict) and "output" in result:
+                response = result["output"]
+            elif isinstance(result, list) and len(result) > 0:
+                # 如果返回的是消息列表
+                last_message = result[-1]
+                if hasattr(last_message, 'content'):
+                    response = last_message.content
+                else:
+                    response = str(last_message)
+            else:
+                response = str(result) if result else "抱歉，我无法处理您的请求。"
             
             # 更新对话历史
             self.conversation_history.append({
@@ -153,6 +144,8 @@ class VoiceChatAgent:
         
         except Exception as e:
             error_msg = f"处理请求时出错: {str(e)}"
+            import traceback
+            traceback.print_exc()  # 打印详细错误信息
             return error_msg
     
     def clear_history(self):

@@ -2,6 +2,7 @@
 FastAPI服务主文件
 提供语音聊天机器人的HTTP API接口
 """
+from contextlib import asynccontextmanager
 from fastapi import FastAPI, File, UploadFile, HTTPException, Form
 from fastapi.responses import Response, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
@@ -17,11 +18,48 @@ from agent import VoiceChatAgent
 from asr_tts import ASRService, TTSService, MockASRService, MockTTSService
 from config import HOST, PORT
 
-# 创建FastAPI应用
+# 初始化服务（在 lifespan 外部定义，以便在路由中访问）
+agent: Optional[VoiceChatAgent] = None
+asr_service: Optional[ASRService | MockASRService] = None
+tts_service: Optional[TTSService | MockTTSService] = None
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """
+    生命周期事件处理器（替代已弃用的 on_event）
+    在应用启动和关闭时执行
+    """
+    # 启动时初始化
+    global agent, asr_service, tts_service
+    
+    print("语音聊天机器人服务启动中...")
+    
+    # 初始化服务
+    agent = VoiceChatAgent()
+    # 使用模拟服务（如果真实ASR/TTS服务不可用，可以切换为真实服务）
+    asr_service = MockASRService()  # 可以改为 ASRService()
+    tts_service = MockTTSService()  # 可以改为 TTSService()
+    
+    print("语音聊天机器人服务启动完成")
+    
+    yield  # 应用运行期间
+    
+    # 关闭时清理资源
+    print("语音聊天机器人服务正在关闭...")
+    if asr_service and hasattr(asr_service, 'close'):
+        await asr_service.close()
+    if tts_service and hasattr(tts_service, 'close'):
+        await tts_service.close()
+    print("语音聊天机器人服务已关闭")
+
+
+# 创建FastAPI应用，使用 lifespan 事件处理器
 app = FastAPI(
     title="语音聊天机器人API",
     description="基于LangChain的语音聊天机器人服务",
-    version="1.0.0"
+    version="1.0.0",
+    lifespan=lifespan
 )
 
 # 配置CORS
@@ -32,28 +70,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-# 初始化服务
-agent = VoiceChatAgent()
-# 使用模拟服务（如果真实ASR/TTS服务不可用，可以切换为真实服务）
-asr_service = MockASRService()  # 可以改为 ASRService()
-tts_service = MockTTSService()  # 可以改为 TTSService()
-
-
-@app.on_event("startup")
-async def startup():
-    """启动时初始化"""
-    print("语音聊天机器人服务启动中...")
-
-
-@app.on_event("shutdown")
-async def shutdown():
-    """关闭时清理资源"""
-    if hasattr(asr_service, 'close'):
-        await asr_service.close()
-    if hasattr(tts_service, 'close'):
-        await tts_service.close()
-    print("语音聊天机器人服务已关闭")
 
 
 @app.get("/")
@@ -93,6 +109,8 @@ async def text_chat(
     """
     try:
         # 调用Agent处理文本
+        if agent is None:
+            raise HTTPException(status_code=503, detail="服务未初始化")
         response = await agent.chat(text, user_id)
         
         return JSONResponse(content={
@@ -123,6 +141,9 @@ async def voice_chat(
         音频文件响应
     """
     try:
+        if agent is None or asr_service is None or tts_service is None:
+            raise HTTPException(status_code=503, detail="服务未初始化")
+        
         # 读取音频数据
         audio_data = await audio.read()
         
@@ -174,6 +195,9 @@ async def voice_chat_text(
         JSON响应，包含识别的文本和回复文本
     """
     try:
+        if agent is None or asr_service is None:
+            raise HTTPException(status_code=503, detail="服务未初始化")
+        
         # 读取音频数据
         audio_data = await audio.read()
         
@@ -210,6 +234,9 @@ async def get_history(user_id: Optional[str] = None):
     Returns:
         对话历史列表
     """
+    if agent is None:
+        raise HTTPException(status_code=503, detail="服务未初始化")
+    
     history = agent.get_history()
     
     if user_id:
@@ -225,6 +252,9 @@ async def get_history(user_id: Optional[str] = None):
 @app.delete("/api/history")
 async def clear_history():
     """清空对话历史"""
+    if agent is None:
+        raise HTTPException(status_code=503, detail="服务未初始化")
+    
     agent.clear_history()
     return JSONResponse(content={
         "status": "success",
