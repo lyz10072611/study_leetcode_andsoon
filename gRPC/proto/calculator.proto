@@ -1,0 +1,46 @@
+syntax = "proto3";
+
+package calculator;
+
+// 计算器服务
+service Calculator {
+  // 一元RPC：简单加法
+  rpc Add (AddRequest) returns (AddResponse);
+
+  // 服务端流式RPC：连续返回计算过程
+  rpc AddStream (AddRequest) returns (stream CalculationStep);
+
+  // 客户端流式RPC：累加多个数字
+  rpc AddClientStream (stream Number) returns (AddResponse);
+
+  // 双向流式RPC：实时计算演示
+  rpc AddBidirectional (stream AddRequest) returns (stream CalculationStep);
+}
+
+// 加法请求
+message AddRequest {
+  double num1 = 1;
+  double num2 = 2;
+  string request_id = 3;  // 请求ID，用于跟踪
+}
+
+// 单个数字（用于客户端流式）
+message Number {
+  double value = 1;
+}
+
+// 加法响应
+message AddResponse {
+  double result = 1;
+  string message = 2;
+  int64 timestamp = 3;  // 时间戳
+  string request_id = 4;
+}
+
+// 计算步骤（用于流式响应）
+message CalculationStep {
+  string step = 1;
+  double current_result = 2;
+  string message = 3;
+  int64 timestamp = 4;
+}
